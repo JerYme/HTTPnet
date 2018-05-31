@@ -5,15 +5,15 @@ using System.Text;
 using System.Threading;
 using HTTPnet.Core.Http;
 using HTTPnet.Core.Http.Raw;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Net;
+using NUnit.Framework;
 
 namespace HTTPnet.Core.Tests
 {
-    [TestClass]
+    [TestFixture]
     public class RawHttpResponseWriterTests
     {
-        [TestMethod]
+        [Test]
         public void Http_SerializeHttpRequest()
         {
             var response = new RawHttpResponse

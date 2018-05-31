@@ -6,14 +6,14 @@ using HTTPnet.Core.Http;
 using HTTPnet.Core.Http.Raw;
 using HTTPnet.Core.Pipeline;
 using HTTPnet.Core.Pipeline.Handlers;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NUnit.Framework;
 
 namespace HTTPnet.Core.Tests
 {
-    [TestClass]
+    [TestFixture]
     public class RawHttpRequestReaderTests
     {
-        [TestMethod]
+        [Test]
         public void HttpRequestReader_ParseWithoutContentLength()
         {
             var buffer = new MemoryStream(Encoding.UTF8.GetBytes(GetRequestTextWithoutContentLength())) { Position = 0 };
@@ -34,7 +34,7 @@ namespace HTTPnet.Core.Tests
             Assert.AreEqual("de,en-US;q=0.8,en;q=0.6,de-DE;q=0.4", request.Headers["Accept-Language"]);
         }
 
-        [TestMethod]
+        [Test]
         public void HttpRequestReader_ParseWithContentLength()
         {
             var buffer = new MemoryStream(Encoding.UTF8.GetBytes(GetRequestTextWithContentLength())) { Position = 0 };

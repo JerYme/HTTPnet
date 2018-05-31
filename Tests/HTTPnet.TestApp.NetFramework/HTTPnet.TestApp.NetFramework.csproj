@@ -46,9 +46,9 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Frameworks\HTTPnet.NetFramework\HTTPnet.NetFramework.csproj">
-      <Project>{FD9DAEFC-98DE-43C6-AE07-EC60D2BCB78B}</Project>
-      <Name>HTTPnet.NetFramework</Name>
+    <ProjectReference Include="..\..\Frameworks\HTTPnet.NetStandard\HTTPnet.NetStandard.csproj">
+      <Project>{9ea28bc4-c04c-4b7c-afdd-fa9cc877f705}</Project>
+      <Name>HTTPnet.NetStandard</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\HTTPnet.Core\HTTPnet.Core.csproj">
       <Project>{26939955-72A0-41F3-A68C-F04DEF24E326}</Project>

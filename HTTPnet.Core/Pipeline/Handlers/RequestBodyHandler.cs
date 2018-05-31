@@ -11,45 +11,44 @@ namespace HTTPnet.Core.Pipeline.Handlers
         public async Task ProcessRequestAsync(HttpContextPipelineHandlerContext context)
         {
             var bodyLength = 0;
-            if (context.HttpContext.Request.Headers.TryGetValue(HttpHeader.ContentLength, out var v))
+            var httpContext = context.HttpContext;
+            var request = httpContext.Request;
+            if (request.Headers.TryGetValue(HttpHeader.ContentLength, out var v))
             {
                 bodyLength = int.Parse(v);
             }
             
             if (bodyLength == 0)
             {
-                context.HttpContext.Request.Body = new MemoryStream(0);
+                request.Body = new MemoryStream(0);
                 return;
             }
 
-            if (context.HttpContext.Request.Headers.ValueEquals(HttpHeader.Expect, "100-Continue"))
+            if (request.Headers.ValueEquals(HttpHeader.Expect, "100-Continue"))
             {
                 var response = new RawHttpResponse
                 {
-                    Version = context.HttpContext.Request.Version,
+                    Version = request.Version,
                     StatusCode = (int)HttpStatusCode.Continue
                 };
 
-                await context.HttpContext.SessionHandler.ResponseWriter.WriteAsync(response, context.HttpContext.ClientSession.CancellationToken);
+                await httpContext.SessionHandler.ResponseWriter.WriteAsync(response, httpContext.ClientSession.CancellationToken);
             }
 
-            while (context.HttpContext.SessionHandler.RequestReader.BufferLength < bodyLength)
+            while (httpContext.SessionHandler.RequestReader.BufferLength < bodyLength)
             {
-                await context.HttpContext.SessionHandler.RequestReader.FetchChunk(context.HttpContext.ClientSession.CancellationToken);
+                await httpContext.SessionHandler.RequestReader.FetchChunk(httpContext.ClientSession.CancellationToken);
             }
 
-            context.HttpContext.Request.Body = new MemoryStream(bodyLength);
+            request.Body = new MemoryStream(bodyLength);
             for (var i = 0; i < bodyLength; i++)
             {
-                context.HttpContext.Request.Body.WriteByte(context.HttpContext.SessionHandler.RequestReader.DequeueFromBuffer());
+                request.Body.WriteByte(httpContext.SessionHandler.RequestReader.DequeueFromBuffer());
             }
              
-            context.HttpContext.Request.Body.Position = 0;
+            request.Body.Position = 0;
         }
 
-        public Task ProcessResponseAsync(HttpContextPipelineHandlerContext context)
-        {
-            return Task.FromResult(0);
-        }
+        public Task ProcessResponseAsync(HttpContextPipelineHandlerContext context) => Task.CompletedTask;
     }
 }

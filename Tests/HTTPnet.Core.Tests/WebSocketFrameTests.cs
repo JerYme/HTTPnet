@@ -3,14 +3,14 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using HTTPnet.Core.WebSockets.Protocol;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NUnit.Framework;
 
 namespace HTTPnet.Core.Tests
 {
-    [TestClass]
+    [TestFixture]
     public class WebSocketFrameTests
     {
-        [TestMethod]
+        [Test]
         public void WebSocketFrame_Simple()
         {
             var payload = "{\r\n  \"Hello\": \"World\"\r\n}";
@@ -26,7 +26,7 @@ namespace HTTPnet.Core.Tests
             CollectionAssert.AreEqual(expected, result);
         }
 
-        [TestMethod]
+        [Test]
         public void WebSocketFrame_LargePayload()
         {
             var payload = "{\r\n  \"Hello12121212121212121212121212121212121212121212121212121AAAAAAAAAAAAAAA\": \"World56565656565656565656565656565656565656565656565BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBCCCCCCCCCC\"\r\n}";
@@ -42,7 +42,7 @@ namespace HTTPnet.Core.Tests
             CollectionAssert.AreEqual(expected, result);
         }
 
-        [TestMethod]
+        [Test]
         public void WebSocketFrame_Parse()
         {
             var payload = "{\"Hello\":\"World\"}";

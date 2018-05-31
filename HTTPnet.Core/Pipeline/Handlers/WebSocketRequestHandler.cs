@@ -23,7 +23,7 @@ namespace HTTPnet.Core.Pipeline.Handlers
             var isWebSocketRequest = context.HttpContext.Request.Headers.ValueEquals(HttpHeader.Upgrade, "websocket");
             if (!isWebSocketRequest)
             {
-                return Task.FromResult(0);
+                return Task.CompletedTask;
             }
 
             var webSocketKey = context.HttpContext.Request.Headers[HttpHeader.SecWebSocketKey];
@@ -45,12 +45,12 @@ namespace HTTPnet.Core.Pipeline.Handlers
 
             context.BreakPipeline = true;
 
-            return Task.FromResult(0);
+            return Task.CompletedTask;
         }
 
         public Task ProcessResponseAsync(HttpContextPipelineHandlerContext context)
         {
-            return Task.FromResult(0);
+            return Task.CompletedTask;
         }
     }
 }

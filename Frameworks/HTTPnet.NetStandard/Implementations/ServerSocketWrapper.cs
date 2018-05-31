@@ -32,21 +32,21 @@ namespace HTTPnet.Implementations
             _listener.Bind(new IPEndPoint(IPAddress.Any, _options.Port));
             _listener.Listen(_options.Backlog);
             
-            return Task.FromResult(0);
+            return Task.CompletedTask;
         }
 
         public Task StopAsync()
         {
             if (_listener == null)
             {
-                return Task.FromResult(0);
+                return Task.CompletedTask;
             }
             
             _listener.Shutdown(SocketShutdown.Both);
             _listener.Dispose();
             _listener = null;
 
-            return Task.FromResult(0);
+            return Task.CompletedTask;
         }
 
         public void Dispose()

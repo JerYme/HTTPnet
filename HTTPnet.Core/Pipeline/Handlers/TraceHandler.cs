@@ -22,13 +22,13 @@ namespace HTTPnet.Core.Pipeline.Handlers
             }
 
             HttpNetTrace.Verbose(nameof(TraceHandler), context.HttpContext.Request.Method + " " + context.HttpContext.Request.Uri + " " + body);
-            return Task.FromResult(0);
+            return Task.CompletedTask;
         }
 
         public Task ProcessResponseAsync(HttpContextPipelineHandlerContext context)
         {
             HttpNetTrace.Verbose(nameof(TraceHandler), context.HttpContext.Response.StatusCode + " " + context.HttpContext.Response.ReasonPhrase);
-            return Task.FromResult(0);
+            return Task.CompletedTask;
         }
     }
 }

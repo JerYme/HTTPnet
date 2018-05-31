@@ -6,17 +6,13 @@ namespace HTTPnet.Core.Pipeline.Handlers
 {
     public class ResponseBodyLengthHandler : IHttpContextPipelineHandler
     {
-        public Task ProcessRequestAsync(HttpContextPipelineHandlerContext context)
-        {
-            return Task.FromResult(0);
-        }
+        public Task ProcessRequestAsync(HttpContextPipelineHandlerContext context) => Task.CompletedTask;
 
         public Task ProcessResponseAsync(HttpContextPipelineHandlerContext context)
         {
-            var bodyLength = context.HttpContext.Response.Body?.Length ?? 0;
-            context.HttpContext.Response.Headers[HttpHeader.ContentLength] = bodyLength.ToString(CultureInfo.InvariantCulture);
-
-            return Task.FromResult(0);
+            context.HttpContext.Response.Headers[HttpHeader.ContentLength] 
+                = context.HttpContext.Response.Body?.Length.ToString(CultureInfo.InvariantCulture) ?? "0";
+            return Task.CompletedTask;
         }
     }
 }

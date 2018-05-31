@@ -11,7 +11,7 @@ namespace HTTPnet.Core.Pipeline.Handlers
     {
         public Task ProcessRequestAsync(HttpContextPipelineHandlerContext context)
         {
-            return Task.FromResult(0);
+            return Task.CompletedTask;
         }
 
         public async Task ProcessResponseAsync(HttpContextPipelineHandlerContext context)

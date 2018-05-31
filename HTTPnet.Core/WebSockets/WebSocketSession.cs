@@ -65,7 +65,7 @@ namespace HTTPnet.Core.WebSockets
             _clientSession.Close();
             Closed?.Invoke(this, EventArgs.Empty);
             
-            return Task.FromResult(0);
+            return Task.CompletedTask;
         }
 
         public async Task SendAsync(string text)

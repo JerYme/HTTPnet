@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard1.1</TargetFramework>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>HTTPnet.Core</AssemblyName>
     <RootNamespace>HTTPnet.Core</RootNamespace>
     <AssemblyVersion>2.1.0.0</AssemblyVersion>
