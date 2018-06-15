@@ -48,7 +48,7 @@ namespace HTTPnet.Core.Http
             {
                 Version = httpRequest.Version,
                 Headers = new Dictionary<string, string>(),
-                StatusCode = (int)HttpStatusCode.OK
+                StatusCode = HttpStatusCode.OK
             };
 
             var httpContext = new HttpContext(httpRequest, httpResponse, _clientSession, this);

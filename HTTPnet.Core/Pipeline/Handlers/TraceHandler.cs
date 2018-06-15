@@ -13,7 +13,7 @@ namespace HTTPnet.Core.Pipeline.Handlers
 
             if (context.HttpContext.Request.Body != null)
             {
-                using (var streamReader = new StreamReader(context.HttpContext.Request.Body, Encoding.UTF8, false, 1024, true))
+                using (var streamReader = new StreamReaderPeekable(context.HttpContext.Request.Body, Encoding.UTF8, false, 1024, true))
                 {
                     body = streamReader.ReadToEnd();
                 }
@@ -22,13 +22,13 @@ namespace HTTPnet.Core.Pipeline.Handlers
             }
 
             HttpNetTrace.Verbose(nameof(TraceHandler), context.HttpContext.Request.Method + " " + context.HttpContext.Request.Uri + " " + body);
-            return Task.CompletedTask;
+            return Task.FromResult(0);
         }
 
         public Task ProcessResponseAsync(HttpContextPipelineHandlerContext context)
         {
             HttpNetTrace.Verbose(nameof(TraceHandler), context.HttpContext.Response.StatusCode + " " + context.HttpContext.Response.ReasonPhrase);
-            return Task.CompletedTask;
+            return Task.FromResult(0);
         }
     }
 }

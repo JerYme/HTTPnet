@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -16,16 +17,21 @@ namespace HTTPnet.Core.Tests
         [Test]
         public void Http_SerializeHttpRequest()
         {
+            var bodyText = "{\"text\":1234}";
             var response = new RawHttpResponse
             {
-                StatusCode = (int) HttpStatusCode.BadRequest,
-                Body = new MemoryStream(Encoding.UTF8.GetBytes("{\"text\":1234}")),
-                Headers =
+                StatusCode = HttpStatusCode.BadRequest,
+                Body = new MemoryStream(Encoding.UTF8.GetBytes(bodyText)),
+                Headers = new Dictionary<string, string>
                 {
                     ["A"] = 1.ToString(),
                     ["B"] = "x"
                 }
             };
+
+            var httpFrame = response.BuildHttpHeader() + bodyText;
+            var base64String = Convert.ToBase64String(Encoding.UTF8.GetBytes(httpFrame));
+            Assert.IsNotNull(base64String);
 
             var memoryStream = new MemoryStream();
             var serializer = new RawHttpResponseWriter(memoryStream, HttpServerOptions.Default);

@@ -10,17 +10,20 @@ namespace HTTPnet.Core.Pipeline.Handlers
     {
         public async Task ProcessRequestAsync(HttpContextPipelineHandlerContext context)
         {
-            var bodyLength = 0;
             var httpContext = context.HttpContext;
             var request = httpContext.Request;
+            var sessionHandler = httpContext.SessionHandler;
+            var cancellationToken = httpContext.ClientSession.CancellationToken;
+
+            var contentLength = -1;
             if (request.Headers.TryGetValue(HttpHeader.ContentLength, out var v))
             {
-                bodyLength = int.Parse(v);
+                contentLength = int.Parse(v);
             }
-            
-            if (bodyLength == 0)
+
+            if (contentLength == 0)
             {
-                request.Body = new MemoryStream(0);
+                request.Body = Stream.Null;
                 return;
             }
 
@@ -29,26 +32,19 @@ namespace HTTPnet.Core.Pipeline.Handlers
                 var response = new RawHttpResponse
                 {
                     Version = request.Version,
-                    StatusCode = (int)HttpStatusCode.Continue
+                    StatusCode = HttpStatusCode.Continue
                 };
 
-                await httpContext.SessionHandler.ResponseWriter.WriteAsync(response, httpContext.ClientSession.CancellationToken);
+                await sessionHandler.ResponseWriter.WriteAsync(response, cancellationToken);
             }
 
-            while (httpContext.SessionHandler.RequestReader.BufferLength < bodyLength)
-            {
-                await httpContext.SessionHandler.RequestReader.FetchChunk(httpContext.ClientSession.CancellationToken);
-            }
-
-            request.Body = new MemoryStream(bodyLength);
-            for (var i = 0; i < bodyLength; i++)
-            {
-                request.Body.WriteByte(httpContext.SessionHandler.RequestReader.DequeueFromBuffer());
-            }
-             
-            request.Body.Position = 0;
+           var bodyStream = await sessionHandler.RequestReader.FetchContent(contentLength, cancellationToken);
+            request.Body = bodyStream;
         }
 
-        public Task ProcessResponseAsync(HttpContextPipelineHandlerContext context) => Task.CompletedTask;
+        public Task ProcessResponseAsync(HttpContextPipelineHandlerContext context)
+        {
+            return Task.FromResult(0);
+        }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -12,13 +13,15 @@ namespace HTTPnet.Core.WebSockets
     {
         private readonly List<WebSocketFrame> _frameQueue = new List<WebSocketFrame>();
         private readonly WebSocketFrameWriter _webSocketFrameWriter;
+        private readonly WebSocketFrameReader _webSocketFrameReader;
         private readonly ClientSession _clientSession;
-        
+
         public WebSocketSession(ClientSession clientSession)
         {
             _clientSession = clientSession ?? throw new ArgumentNullException(nameof(clientSession));
 
             _webSocketFrameWriter = new WebSocketFrameWriter(_clientSession.Client.SendStream);
+            _webSocketFrameReader = new WebSocketFrameReader(_clientSession.Client.ReceiveStream);
         }
 
         public event EventHandler<WebSocketMessageReceivedEventArgs> MessageReceived;
@@ -27,7 +30,7 @@ namespace HTTPnet.Core.WebSockets
 
         public async Task ProcessAsync()
         {
-            var webSocketFrame = await new WebSocketFrameReader(_clientSession.Client.ReceiveStream).ReadAsync(_clientSession.CancellationToken).ConfigureAwait(false);
+            var webSocketFrame = await _webSocketFrameReader.ReadAsync(_clientSession.CancellationToken).ConfigureAwait(false);
             switch (webSocketFrame.Opcode)
             {
                 case WebSocketOpcode.Ping:
@@ -43,14 +46,13 @@ namespace HTTPnet.Core.WebSockets
                         return;
                     }
 
-                case WebSocketOpcode.Pong:
-                    {
-                        return;
-                    }
             }
 
-            _frameQueue.Add(webSocketFrame);
+            if (webSocketFrame.Opcode.IsControl()) return;
 
+            ValidateNewFrame(webSocketFrame);
+
+            _frameQueue.Add(webSocketFrame);
             if (webSocketFrame.Fin)
             {
                 var message = GenerateMessage();
@@ -60,12 +62,33 @@ namespace HTTPnet.Core.WebSockets
             }
         }
 
+        private void ValidateNewFrame(WebSocketFrame webSocketFrame)
+        {
+            // Details: https://tools.ietf.org/html/rfc6455#section-5.6 PAGE 34
+            var first = _frameQueue.Count == 0;
+            if (first)
+            {
+                if (webSocketFrame.Opcode != WebSocketOpcode.Binary &&
+                    webSocketFrame.Opcode != WebSocketOpcode.Text)
+                {
+                    throw new InvalidOperationException("Frame opcode is invalid.");
+                }
+            }
+            else if (!webSocketFrame.Fin)
+            {
+                if (webSocketFrame.Opcode != WebSocketOpcode.Continuation)
+                {
+                    throw new InvalidOperationException("Fragmented frame is invalid.");
+                }
+            }
+        }
+
         public Task CloseAsync()
         {
             _clientSession.Close();
             Closed?.Invoke(this, EventArgs.Empty);
-            
-            return Task.CompletedTask;
+
+            return Task.FromResult(0);
         }
 
         public async Task SendAsync(string text)
@@ -75,7 +98,7 @@ namespace HTTPnet.Core.WebSockets
             await _webSocketFrameWriter.WriteAsync(new WebSocketFrame
             {
                 Opcode = WebSocketOpcode.Text,
-                Payload = Encoding.UTF8.GetBytes(text)
+                Payload = new ArraySegment<byte>(Encoding.UTF8.GetBytes(text))
             }, _clientSession.CancellationToken).ConfigureAwait(false);
         }
 
@@ -86,65 +109,39 @@ namespace HTTPnet.Core.WebSockets
             await _webSocketFrameWriter.WriteAsync(new WebSocketFrame
             {
                 Opcode = WebSocketOpcode.Binary,
-                Payload = data
+                Payload = new ArraySegment<byte>(data)
             }, _clientSession.CancellationToken).ConfigureAwait(false);
         }
 
         private WebSocketMessage GenerateMessage()
         {
-            ValidateFrameQueue();
-
-            var buffer = new List<byte>();
-            foreach (var frame in _frameQueue)
-            {
-                buffer.AddRange(frame.Payload);
-            }
-
-            var messageType = _frameQueue.First().Opcode;
+            var messageType = _frameQueue[0].Opcode;
 
             if (messageType == WebSocketOpcode.Text)
             {
-                var text = Encoding.UTF8.GetString(buffer.ToArray(), 0, buffer.Count);
-                return new WebSocketTextMessage(text);
+                using (var streamReader = new StreamReaderPeekable(new ArraySegmentsStream(_frameQueue.Select(x => x.Payload)), Encoding.UTF8, false, 1024, true))
+                {
+                    var text = streamReader.ReadToEnd();
+                    return new WebSocketTextMessage(text);
+                }
             }
 
             if (messageType == WebSocketOpcode.Binary)
             {
-                return new WebSocketBinaryMessage(buffer.ToArray());
+                var bytes = new byte[_frameQueue.Sum(x => x.Payload.Count)];
+                int offset = 0;
+                foreach (var frame in _frameQueue)
+                {
+                    var payload = frame.Payload;
+                    if (payload.Array != null) Buffer.BlockCopy(payload.Array, payload.Offset, bytes, offset, payload.Count);
+                    offset += payload.Count;
+                }
+
+                return new WebSocketBinaryMessage(bytes);
             }
 
             throw new NotSupportedException();
         }
-
-        private void ValidateFrameQueue()
-        {
-            // Details: https://tools.ietf.org/html/rfc6455#section-5.6 PAGE 34
-            if (!_frameQueue.Last().Fin)
-            {
-                throw new InvalidOperationException("Fragmented frames are invalid.");
-            }
-
-            if (_frameQueue.First().Opcode != WebSocketOpcode.Binary &&
-                _frameQueue.First().Opcode != WebSocketOpcode.Text)
-            {
-                throw new InvalidOperationException("Frame opcode is invalid.");
-            }
-
-            if (_frameQueue.Count > 2)
-            {
-                for (int i = 1; i < _frameQueue.Count - 1; i++)
-                {
-                    if (_frameQueue[i].Opcode != WebSocketOpcode.Continuation)
-                    {
-                        throw new InvalidOperationException("Fragmented frame is invalid.");
-                    }
-
-                    if (_frameQueue[i].Fin)
-                    {
-                        throw new InvalidOperationException("Fragmented frame is invalid.");
-                    }
-                }
-            }
-        }
+        
     }
 }

@@ -22,19 +22,10 @@ namespace HTTPnet.Core.Http.Raw
             if (response == null) throw new ArgumentNullException(nameof(response));
             if (cancellationToken == null) throw new ArgumentNullException(nameof(cancellationToken));
 
-            var buffer = new StringBuilder();
-            buffer.AppendLine(response.Version + " " + response.StatusCode + " " + response.ReasonPhrase);
+            var s = response.BuildHttpHeader();
+            var headerBytes = Encoding.UTF8.GetBytes(s);
 
-            foreach (var header in response.Headers)
-            {
-                buffer.AppendLine(header.Key + ":" + header.Value);
-            }
-
-            buffer.AppendLine();
-
-            var binaryBuffer = Encoding.UTF8.GetBytes(buffer.ToString());
-
-            await _sendStream.WriteAsync(binaryBuffer, 0, binaryBuffer.Length, cancellationToken).ConfigureAwait(false);
+            await _sendStream.WriteAsync(headerBytes, 0, headerBytes.Length, cancellationToken).ConfigureAwait(false);
 
             if (response.Body != null && response.Body.Length > 0)
             {
@@ -44,5 +35,6 @@ namespace HTTPnet.Core.Http.Raw
 
             await _sendStream.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
+
     }
 }

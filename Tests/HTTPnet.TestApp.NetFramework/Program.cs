@@ -32,6 +32,7 @@ namespace HTTPnet.TestApp.NetFramework
             httpServer.RequestHandler = pipeline;
             httpServer.StartAsync(HttpServerOptions.Default).GetAwaiter().GetResult();
 
+
             Thread.Sleep(Timeout.Infinite);
         }
 

@@ -11,7 +11,7 @@ namespace HTTPnet.Core.Pipeline.Handlers
     {
         public Task ProcessRequestAsync(HttpContextPipelineHandlerContext context)
         {
-            return Task.CompletedTask;
+            return Task.FromResult(0);
         }
 
         public async Task ProcessResponseAsync(HttpContextPipelineHandlerContext context)
@@ -39,14 +39,7 @@ namespace HTTPnet.Core.Pipeline.Handlers
             context.HttpContext.Response.Body = compressedBody;
         }
 
-        private static bool ClientSupportsGzipCompression(Dictionary<string, string> headers)
-        {
-            if (headers.TryGetValue(HttpHeader.AcceptEncoding, out var headerValue))
-            {
-                return headerValue.IndexOf("gzip", StringComparison.OrdinalIgnoreCase) > -1;
-            }
-
-            return false;
-        }
+        private static bool ClientSupportsGzipCompression(Dictionary<string, string> headers) 
+            => headers.TryGetValue(HttpHeader.AcceptEncoding, out var headerValue) && headerValue.IndexOf("gzip", StringComparison.OrdinalIgnoreCase) > -1;
     }
 }

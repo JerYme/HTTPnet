@@ -5,6 +5,9 @@ namespace HTTPnet
 {
     public class HttpServerFactory
     {
-        public HttpServer CreateHttpServer() => new HttpServer(o => new ServerSocketWrapper(o));
+        public HttpServer CreateHttpServer()
+        {
+            return new HttpServer(o => new ServerSocketWrapper(o));
+        }
     }
 }

@@ -15,7 +15,7 @@ namespace HTTPnet.Core.Tests
         {
             var payload = "{\r\n  \"Hello\": \"World\"\r\n}";
             var payloadBuffer = Encoding.UTF8.GetBytes(payload);
-            var webSocketFrame = new WebSocketFrame { Opcode = WebSocketOpcode.Binary, Payload = payloadBuffer };
+            var webSocketFrame = new WebSocketFrame { Opcode = WebSocketOpcode.Binary, Payload = new ArraySegment<byte>(payloadBuffer) };
 
             var memoryStream = new MemoryStream();
             new WebSocketFrameWriter(memoryStream).WriteAsync(webSocketFrame, CancellationToken.None).Wait();
@@ -31,7 +31,7 @@ namespace HTTPnet.Core.Tests
         {
             var payload = "{\r\n  \"Hello12121212121212121212121212121212121212121212121212121AAAAAAAAAAAAAAA\": \"World56565656565656565656565656565656565656565656565BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBCCCCCCCCCC\"\r\n}";
             var payloadBuffer = Encoding.UTF8.GetBytes(payload.ToString());
-            var webSocketFrame = new WebSocketFrame { Opcode = WebSocketOpcode.Binary, Payload = payloadBuffer };
+            var webSocketFrame = new WebSocketFrame { Opcode = WebSocketOpcode.Binary, Payload = new ArraySegment<byte>(payloadBuffer) };
 
             var memoryStream = new MemoryStream();
             new WebSocketFrameWriter(memoryStream).WriteAsync(webSocketFrame, CancellationToken.None).Wait();
@@ -47,7 +47,7 @@ namespace HTTPnet.Core.Tests
         {
             var payload = "{\"Hello\":\"World\"}";
             var payloadBuffer = Encoding.UTF8.GetBytes(payload);
-            var sourceWebSocketFrame = new WebSocketFrame { Opcode = WebSocketOpcode.Binary, Payload = payloadBuffer };
+            var sourceWebSocketFrame = new WebSocketFrame { Opcode = WebSocketOpcode.Binary, Payload = new ArraySegment<byte>(payloadBuffer) };
             sourceWebSocketFrame.Opcode = WebSocketOpcode.Ping;
 
             var memoryStream = new MemoryStream();

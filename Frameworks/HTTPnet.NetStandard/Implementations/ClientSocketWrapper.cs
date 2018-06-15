@@ -3,14 +3,12 @@ using System.IO;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using HTTPnet.Core.Communication;
-using HTTPnet.Core.Http;
 
 namespace HTTPnet.Implementations
 {
     public class ClientSocketWrapper : IClientSocketWrapper
     {
         private readonly Socket _socket;
-        private readonly HttpClientOptions _options;
 
         public ClientSocketWrapper(Socket socket)
         {
@@ -22,12 +20,6 @@ namespace HTTPnet.Implementations
             SendStream = ReceiveStream;
         }
 
-        public ClientSocketWrapper(HttpClientOptions options)
-        {
-            _options = options ?? throw new ArgumentNullException(nameof(options));
-        }
-
-
         public string Identifier { get; }
 
         public Stream ReceiveStream { get; }
@@ -36,7 +28,7 @@ namespace HTTPnet.Implementations
         public Task DisconnectAsync()
         {
             _socket.Shutdown(SocketShutdown.Both);
-            return Task.CompletedTask;
+            return Task.FromResult(0);
         }
 
         public void Dispose()

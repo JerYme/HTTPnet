@@ -11,24 +11,69 @@ namespace HTTPnet.Core.Http.Raw
     public sealed class RawHttpRequestReader
     {
         private readonly Stream _receiveStream;
-        private readonly Queue<byte> _buffer = new Queue<byte>();
-        private readonly byte[] _chunkBuffer;
+        private readonly StreamReaderPeekable _streamReaderPeekable;
+        private readonly List<Stream> _receiveStreams;
+        private readonly StreamOfStreams _streamOfStreams;
+        private readonly byte[] _receiveBuffer;
+        private readonly byte[] _receiveBufferTail;
 
         public RawHttpRequestReader(Stream receiveStream, HttpServerOptions options)
         {
             _receiveStream = receiveStream ?? throw new ArgumentNullException(nameof(receiveStream));
             if (options == null) throw new ArgumentNullException(nameof(options));
-
-            _chunkBuffer = new byte[options.ReceiveChunkSize];
+            _receiveBuffer = new byte[options.ReceiveChunkSize];
+            _receiveBufferTail = new byte[options.ReceiveChunkSize];
+            _receiveStreams = new List<Stream> { Stream.Null, _receiveStream };
+            _streamOfStreams = new StreamOfStreams(_receiveStreams);
+            _streamReaderPeekable = new StreamReaderPeekable(_streamOfStreams, Encoding.UTF8, false, options.ReceiveChunkSize, true);
         }
 
-        public int BufferLength => _buffer.Count;
+        public async Task<Stream> FetchContent(int contentLength, CancellationToken cancellationToken)
+        {
+            var buffer = _streamReaderPeekable.GetBytesFromCharBuffer();
+            _streamReaderPeekable.DiscardBufferedData();
+
+            _receiveStreams[0] = new ArraySegmentStream(buffer);
+            _streamOfStreams.Reset();
+
+            if (contentLength == 0) return Stream.Null;
+
+            var body = contentLength > 0 ? new MemoryStream(contentLength) : new MemoryStream();
+
+            int read = 0;
+            while (true)
+            {
+                var r = await _streamOfStreams.ReadAsync(_receiveBuffer, 0, _receiveBuffer.Length, cancellationToken);
+                read += r;
+
+                if (r == 0 || read == contentLength)
+                {
+                    if (contentLength == -1 || read == contentLength)
+                    {
+                        _receiveStreams[0] = Stream.Null;
+                        _streamOfStreams.Reset();
+                        body.Position = 0;
+                        return body;
+                    }
+                    throw new HttpRequestInvalidException();
+                }
+
+                body.Write(_receiveBuffer, 0, r);
+                if (contentLength == -1) continue;
+
+                if (read > contentLength)
+                {
+                    var tailLength = read - contentLength;
+                    Buffer.BlockCopy(_receiveBuffer, _receiveBuffer.Length - tailLength, _receiveBufferTail, 0, tailLength);
+                    _receiveStreams[0] = new ArraySegmentStream(new ArraySegment<byte>(_receiveBufferTail, 0, tailLength));
+                    _streamOfStreams.Reset();
+                }
+            }
+        }
 
         public async Task<RawHttpRequest> ReadAsync(CancellationToken cancellationToken)
         {
-            await FetchChunk(cancellationToken).ConfigureAwait(false);
-
-            var statusLine = ReadLine();
+            var statusLine = await _streamReaderPeekable.ReadLineAsync();
             var statusLineItems = statusLine.Split(' ');
 
             if (statusLineItems.Length != 3)
@@ -36,50 +81,29 @@ namespace HTTPnet.Core.Http.Raw
                 throw new HttpRequestInvalidException();
             }
 
+            var headers = await ParseHeaders();
+
             var request = new RawHttpRequest
             {
                 Method = statusLineItems[0].ToUpperInvariant(),
                 Uri = statusLineItems[1],
                 Version = statusLineItems[2].ToUpperInvariant(),
-                Headers = ParseHeaders()
+                Headers = headers
             };
 
             return request;
         }
 
-        public async Task FetchChunk(CancellationToken cancellationToken)
-        {
-            var size = await _receiveStream.ReadAsync(_chunkBuffer, 0, _chunkBuffer.Length, cancellationToken);
-            if (size == 0)
-            {
-                throw new TaskCanceledException();
-            }
-
-            for (var i = 0; i < size; i++)
-            {
-                _buffer.Enqueue(_chunkBuffer[i]);
-            }
-        }
-
-        public byte DequeueFromBuffer()
-        {
-            return _buffer.Dequeue();
-        }
-
-        private Dictionary<string, string> ParseHeaders()
+        private async Task<Dictionary<string, string>> ParseHeaders()
         {
             var headers = new Dictionary<string, string>();
-
-            var line = ReadLine();
-            while (!string.IsNullOrEmpty(line))
+            while (true)
             {
+                var line = await _streamReaderPeekable.ReadLineAsync();
+                if (string.IsNullOrEmpty(line)) return headers;
                 var header = ParseHeader(line);
                 headers.Add(header.Key, header.Value);
-
-                line = ReadLine();
             }
-
-            return headers;
         }
 
         private static KeyValuePair<string, string> ParseHeader(string source)
@@ -95,30 +119,6 @@ namespace HTTPnet.Core.Http.Raw
 
             return new KeyValuePair<string, string>(name, value);
         }
-        
-        private string ReadLine()
-        {
-            var buffer = new StringBuilder();
 
-            while (_buffer.Count > 0)
-            {
-                var @char = (char)_buffer.Dequeue();
-
-                if (@char == '\r')
-                {
-                    @char = (char)_buffer.Dequeue();
-                    if (@char != '\n')
-                    {
-                        throw new HttpRequestInvalidException();
-                    }
-
-                    return buffer.ToString();
-                }
-
-                buffer.Append(@char);
-            }
-
-            throw new HttpRequestInvalidException();
-        }
     }
 }

@@ -8,6 +8,7 @@ namespace HTTPnet.Core.WebSockets.Protocol
     public class WebSocketFrameReader
     {
         private readonly Stream _receiveStream;
+        private readonly byte[] _headBuffer = new byte[1024];
 
         public WebSocketFrameReader(Stream receiveStream)
         {
@@ -16,90 +17,91 @@ namespace HTTPnet.Core.WebSockets.Protocol
 
         public async Task<WebSocketFrame> ReadAsync(CancellationToken cancellationToken)
         {
-            // https://tools.ietf.org/html/rfc6455
-
+            /* https://tools.ietf.org/html/rfc6455
+             0                   1                   2                   3
+              0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+             +-+-+-+-+-------+-+-------------+-------------------------------+
+             |F|R|R|R| opcode|M| Payload len |    Extended payload length    |
+             |I|S|S|S|  (4)  |A|     (7)     |             (16/64)           |
+             |N|V|V|V|       |S|             |   (if payload len==126/127)   |
+             | |1|2|3|       |K|             |                               |
+             +-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - - +
+             |     Extended payload length continued, if payload len == 127  |
+             + - - - - - - - - - - - - - - - +-------------------------------+
+             |                               |Masking-key, if MASK set to 1  |
+             +-------------------------------+-------------------------------+
+             | Masking-key (continued)       |          Payload Data         |
+             +-------------------------------- - - - - - - - - - - - - - - - +
+             :                     Payload Data continued ...                :
+             + - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - +
+             |                     Payload Data continued ...                |
+             +---------------------------------------------------------------+
+            */
             var webSocketFrame = new WebSocketFrame();
 
-            var buffer = await ReadBytesAsync(2, cancellationToken);
-            var byte0 = buffer[0];
-            var byte1 = buffer[1];
+            var b01 = await ReadHeaderAsync(2, cancellationToken);
+            var b0 = b01[0];
+            var b1 = b01[1];
 
-            if ((byte0 & 128) == 128)
+            if ((b0 & 128) == 128)
             {
                 webSocketFrame.Fin = true;
-                byte0 = (byte)(127 & byte0);
+                b0 = (byte)(127 & b0);
             }
 
-            webSocketFrame.Opcode = (WebSocketOpcode)byte0;
+            webSocketFrame.Opcode = (WebSocketOpcode)b0;
 
-            var hasMask = (byte1 & 128) == 128;
-            var maskingKey = new byte[4];
-
-            var payloadLength = byte1 & 127;
+            var payloadLength = b1 & 127;
             if (payloadLength == 126)
             {
                 // The length is 7 + 16 bits.
-                buffer = await ReadBytesAsync(2, cancellationToken);
-                var byte2 = buffer[0];
-                var byte3 = buffer[1];
+                var b23 = await ReadHeaderAsync(2, cancellationToken);
+                var b2 = b23[0];
+                var b3 = b23[1];
 
-                payloadLength = byte3 | byte2 >> 8 | 126 >> 16;
+                payloadLength = b3 | b2 >> 8 | 126 >> 16;
             }
             else if (payloadLength == 127)
             {
                 // The length is 7 + 64 bits.
-                buffer = await ReadBytesAsync(8, cancellationToken);
-                var byte2 = buffer[0];
-                var byte3 = buffer[1];
-                var byte4 = buffer[2];
-                var byte5 = buffer[3];
-                var byte6 = buffer[4];
-                var byte7 = buffer[5];
-                var byte8 = buffer[6];
-                var byte9 = buffer[7];
-
-                payloadLength = byte9 | byte8 >> 56 | byte7 >> 48 | byte6 >> 40 | byte5 >> 32 | byte4 >> 24 | byte3 >> 16 | byte2 >> 8 | 127;
+                var b29 = await ReadHeaderAsync(8, cancellationToken);
+                payloadLength = b29[7] | b29[6] >> 56 | b29[5] >> 48 | b29[4] >> 40 | b29[3] >> 32 | b29[2] >> 24 | b29[1] >> 16 | b29[0] >> 8 | 127;
             }
-            
-            if (hasMask)
+
+            if ((b1 & 128) == 128)
             {
-                buffer = await ReadBytesAsync(4, cancellationToken);
-                maskingKey[0] = buffer[0];
-                maskingKey[1] = buffer[1];
-                maskingKey[2] = buffer[2];
-                maskingKey[3] = buffer[3];
+                webSocketFrame.MaskingKey = await ReadHeaderAsync(4, cancellationToken);
             }
 
-            webSocketFrame.MaskingKey = BitConverter.ToUInt32(maskingKey, 0);
-
-            webSocketFrame.Payload = new byte[payloadLength];
             if (payloadLength > 0)
             {
-                await _receiveStream.ReadAsync(webSocketFrame.Payload, 0, webSocketFrame.Payload.Length, cancellationToken).ConfigureAwait(false);
+                webSocketFrame.Payload = new ArraySegment<byte>(new byte[payloadLength], 0, payloadLength);
+                await ReadPayloadAsync(webSocketFrame.Payload, cancellationToken).ConfigureAwait(false);
             }
 
-            if (hasMask)
-            {
-                for (var i = 0; i < webSocketFrame.Payload.Length; i++)
-                {
-                    webSocketFrame.Payload[i] = (byte)(webSocketFrame.Payload[i] ^ maskingKey[i % 4]);
-                }
-            }
-
+            webSocketFrame.Mask();
             return webSocketFrame;
         }
 
-        private async Task<byte[]> ReadBytesAsync(int count, CancellationToken cancellationToken)
-        {
-            var buffer = new byte[count];
 
-            var effectiveCount = await _receiveStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
+        private async Task ReadPayloadAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
+        {
+            var effectiveCount = await _receiveStream.ReadAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken).ConfigureAwait(false);
+            if (effectiveCount == 0 || effectiveCount != buffer.Count)
+            {
+                throw new TaskCanceledException();
+            }
+        }
+
+        private async Task<byte[]> ReadHeaderAsync(int count, CancellationToken cancellationToken)
+        {
+            var effectiveCount = await _receiveStream.ReadAsync(_headBuffer, 0, count, cancellationToken).ConfigureAwait(false);
             if (effectiveCount == 0 || effectiveCount != count)
             {
                 throw new TaskCanceledException();
             }
 
-            return buffer;
+            return _headBuffer;
         }
     }
 }

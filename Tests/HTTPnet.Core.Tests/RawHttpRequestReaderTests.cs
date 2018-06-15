@@ -13,6 +13,14 @@ namespace HTTPnet.Core.Tests
     [TestFixture]
     public class RawHttpRequestReaderTests
     {
+        enum BodyStyle
+        {
+            NoBody,
+            SmallBody,
+            BigBody,
+            HugeBody,
+        }
+
         [Test]
         public void HttpRequestReader_ParseWithoutContentLength()
         {
@@ -20,6 +28,9 @@ namespace HTTPnet.Core.Tests
             var parser = new RawHttpRequestReader(buffer, new HttpServerOptions());
 
             var request = parser.ReadAsync(CancellationToken.None).Result;
+            var body = parser.FetchContent(-1, CancellationToken.None).Result;
+            request.Body = body;
+
             Assert.IsTrue(request != null, "Parse failed.");
             Assert.AreEqual(HttpMethod.Delete, request.Method);
             Assert.AreEqual("/Uri%20/lalalo323/_/-/+/%/@/&/./~/:/#/;/,/*", request.Uri);
@@ -41,8 +52,8 @@ namespace HTTPnet.Core.Tests
             var parser = new RawHttpRequestReader(buffer, new HttpServerOptions());
 
             var request = parser.ReadAsync(CancellationToken.None).Result;
-
-            var bodyReader = new RequestBodyHandler();
+            var body = parser.FetchContent(-1, CancellationToken.None).Result;
+            request.Body = body;
             
             Assert.IsTrue(request != null, "Parse failed.");
             Assert.AreEqual("Body123{}%!(:<>=", Encoding.UTF8.GetString(StreamToArray(request.Body)));
@@ -52,7 +63,6 @@ namespace HTTPnet.Core.Tests
         {
             var buffer = new byte[source.Length];
             source.Read(buffer, 0, buffer.Length);
-
             return buffer;
         }
         
